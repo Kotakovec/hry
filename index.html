@@ -2,91 +2,146 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <!-- Tyhle meta tagy zabrání přibližování a zajistí správné zobrazení na mobilu/hodinkách -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Nokia Had na Hodinky</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Nokia Had - Kulaté Hodinky</title>
   <style>
     body, html {
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
-      background-color: #000; /* Černé pozadí pro šetření AMOLED baterie */
+      background-color: #000; /* Černé pozadí */
       display: flex;
       justify-content: center;
       align-items: center;
-      overflow: hidden; /* Zabrání posouvání stránky */
-      touch-action: none; /* Vypne gesta prohlížeče, např. swipe pro krok zpět */
+      overflow: hidden;
+      touch-action: none;
       font-family: Arial, sans-serif;
     }
-    
+
+    /* Kontejner, který simuluje tělo hodinek */
+    .watch-frame {
+      width: 100vmin; /* 100% nejmenšího rozměru obrazovky (zajistí 1:1 čtverec/kruh) */
+      height: 100vmin;
+      border-radius: 50%; /* Tady je ten kulatý tvar! */
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.9), 0 0 10px rgba(0,0,0,0.5); /* Hloubka rámečku */
+      background: linear-gradient(145deg, #1a1a1a, #000); /* Vizuální rámeček */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      box-sizing: border-box;
+      border: 8px solid #111; /* Tmavý, pevný rámeček */
+      overflow: hidden; /* Usekne vše, co vyčnívá z kruhu */
+      position: relative;
+    }
+
     canvas {
       background-color: #9bc700; /* Klasická Nokia zelená */
-      width: 100vmin; /* 100vmin zajistí přesný čtverec, který vyplní obrazovku (1:1) */
-      height: 100vmin;
-      border-radius: 5%; /* Lehké zaoblení pro hezčí vzhled na kulatých hodinkách */
+      border-radius: 50%; /* Samotný displej je také kulatý */
+      width: 100%;
+      height: 100%;
+      box-shadow: inset 0 0 15px rgba(0,0,0,0.5); /* Vnitřní stín pro displej */
     }
+
   </style>
 </head>
 <body>
 
-  <canvas id="gameCanvas"></canvas>
+  <div class="watch-frame">
+    <canvas id="gameCanvas"></canvas>
+  </div>
 
   <script>
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
-    // Interní rozlišení hry (čtverec)
-    canvas.width = 400;
-    canvas.height = 400;
+    // Interní rozlišení hry (pro logiku, bude se škálovat na plátno)
+    const viewSize = 400;
+    canvas.width = viewSize;
+    canvas.height = viewSize;
 
-    const gridSize = 20; // Velikost jednoho políčka
+    // Herní konstanty
+    const centerX = viewSize / 2;
+    const centerY = viewSize / 2;
+    const gridSize = 20; 
+    
+    // Poloměr hracího pole (o kousek menší než polovina obrazovky, aby byla rezerva u okraje)
+    const playRadius = 185; 
+
+    // Proměnné hry
     let snake;
     let food;
     let dx;
     let dy;
     let score;
     let gameLoopTimeout;
-    let isGameOver = true; // Začneme s obrazovkou pro start
+    let isGameOver = true;
 
     function initGame() {
-      snake = [{x: 200, y: 200}];
-      dx = 0;
-      dy = -gridSize;
+      snake = [{x: centerX, y: centerY}];
+      dx = gridSize; // Začneme pohybem doprava
+      dy = 0;
       score = 0;
       isGameOver = false;
       spawnFood();
       update();
     }
 
+    // Funkce, která zjistí, zda se políčko vejde do kruhu
+    function isInBounds(x, y) {
+      // Vzdálenost od středu plátna ke středu políčka
+      const distToCenter = Math.sqrt(
+        Math.pow((x + gridSize/2) - centerX, 2) +
+        Math.pow((y + gridSize/2) - centerY, 2)
+      );
+      return distToCenter < playRadius;
+    }
+
     function spawnFood() {
-      food = {
-        x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize,
-        y: Math.floor(Math.random() * (canvas.height / gridSize)) * gridSize
-      };
+      let validSpawn = false;
+      while (!validSpawn) {
+        // Vygeneruj náhodnou pozici
+        food = {
+          x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize,
+          y: Math.floor(Math.random() * (canvas.height / gridSize)) * gridSize
+        };
+
+        // Zkontroluj, zda jídlo není v rohu, který je useknutý kruhem
+        if (isInBounds(food.x, food.y)) {
+          // Zkontroluj, zda jídlo není uvnitř hada
+          let foodInSnake = false;
+          for (let i = 0; i < snake.length; i++) {
+            if (food.x === snake[i].x && food.y === snake[i].y) {
+              foodInSnake = true;
+              break;
+            }
+          }
+          if (!foodInSnake) validSpawn = true;
+        }
+      }
     }
 
     function drawBlock(x, y, color) {
       ctx.fillStyle = color;
-      // Vykreslíme o pixel menší čtverec, aby byla vidět mřížka jako na starých displejích
-      ctx.fillRect(x, y, gridSize - 1, gridSize - 1); 
+      // Vykreslíme o pixel menší čtverec pro "retro" mřížkový vzhled
+      ctx.fillRect(x + 1, y + 1, gridSize - 2, gridSize - 2); 
     }
 
     function update() {
       if (isGameOver) return;
 
-      gameLoopTimeout = setTimeout(update, 150); // Rychlost hada (v milisekundách)
+      gameLoopTimeout = setTimeout(update, 160); // Rychlost (160ms)
 
       // Výpočet nové hlavy hada
       const head = { x: snake[0].x + dx, y: snake[0].y + dy };
 
-      // Náraz do zdi -> Konec hry
-      if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+      // Detekce kolize s KULATÝM OKRAJEM (používáme funkci isInBounds)
+      if (!isInBounds(head.x, head.y)) {
         gameOver();
         return;
       }
 
-      // Náraz do sebe sama -> Konec hry
+      // Náraz do sebe sama
       for (let i = 0; i < snake.length; i++) {
         if (head.x === snake[i].x && head.y === snake[i].y) {
           gameOver();
@@ -102,7 +157,7 @@
         score++;
         spawnFood();
       } else {
-        // Pokud nejí, zkrátíme ocas (had se pohybuje)
+        // Pokud nejí, had se posune
         snake.pop();
       }
 
@@ -110,63 +165,86 @@
     }
 
     function draw() {
-      // Vyčištění plátna
+      // Vyčištění plátna na Nokia zelenou
       ctx.fillStyle = '#9bc700';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // (Volitelné) Zobrazení hracího kruhu pro ladění
+      // ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+      // ctx.beginPath(); ctx.arc(centerX, centerY, playRadius, 0, Math.PI*2); ctx.stroke();
 
       // Vykreslení jídla
       drawBlock(food.x, food.y, '#000');
 
       // Vykreslení hada
-      snake.forEach(part => drawBlock(part.x, part.y, '#000'));
+      snake.forEach((part, index) => {
+        // Vykreslíme tělo (index > 0)
+        drawBlock(part.x, part.y, '#000');
+        
+        // (Volitelné) Přidáme hlavičce malou značku
+        // if(index === 0) { ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(part.x + 5, part.y + 5, 10, 10); }
+      });
 
-      // Vykreslení skóre
+      // Vykreslení skóre a návodu (upraveno pro kulatý displej)
       ctx.fillStyle = '#000';
-      ctx.font = '20px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillText(score, 10, 25);
+      ctx.textAlign = 'center';
+      
+      ctx.font = '16px Arial';
+      ctx.fillText(score, centerX, 30); // Skóre nahoře uprostřed
     }
 
     function gameOver() {
       isGameOver = true;
-      ctx.fillStyle = 'rgba(155, 199, 0, 0.9)'; // Poloprůhledné překrytí
+      // Zatemníme displej poloprůhlednou zelenou
+      ctx.fillStyle = 'rgba(155, 199, 0, 0.9)'; 
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       
       ctx.fillStyle = '#000';
       ctx.textAlign = 'center';
       
       if (score === undefined) {
+        // Úvodní obrazovka
         ctx.font = '30px Arial';
-        ctx.fillText('NOKIA HAD', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.fillText('NOKIA HAD', centerX, centerY - 10);
         ctx.font = '18px Arial';
-        ctx.fillText('Klepni pro start', canvas.width / 2, canvas.height / 2 + 30);
+        ctx.fillText('Klepni pro start', centerX, centerY + 30);
       } else {
+        // Konec hry
         ctx.font = '30px Arial';
-        ctx.fillText('KONEC HRY', canvas.width / 2, canvas.height / 2 - 20);
-        ctx.font = '20px Arial';
-        ctx.fillText('Skóre: ' + score, canvas.width / 2, canvas.height / 2 + 10);
+        ctx.fillText('KONEC HRY', centerX, centerY - 20);
+        ctx.font = '22px Arial';
+        ctx.fillText('Skóre: ' + score, centerX, centerY + 10);
         ctx.font = '16px Arial';
-        ctx.fillText('Klepni pro novou hru', canvas.width / 2, canvas.height / 2 + 40);
+        ctx.fillText('Klepni pro novou hru', centerX, centerY + 45);
       }
     }
 
     // --- DOTYKOVÉ OVLÁDÁNÍ PRO HODINKY ---
+    const getTouchCoords = e => {
+        const rect = canvas.getBoundingClientRect();
+        const touch = e.touches[0];
+        // Přepočítáme dotyk na souřadnice plátna (0-400)
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        return {
+            x: (touch.clientX - rect.left) * scaleX - centerX,
+            y: (touch.clientY - rect.top) * scaleY - centerY
+        };
+    };
+
     canvas.addEventListener('touchstart', e => {
-      e.preventDefault(); // Zabrání scrollování stránky dotykem
+      e.preventDefault(); // Zabrání gestům prohlížeče
 
       if (isGameOver) {
         initGame();
         return;
       }
 
-      const rect = canvas.getBoundingClientRect();
-      const touch = e.touches[0];
-      
-      // Zjistíme, kde se uživatel dotkl relativně ke středu herní plochy
-      const x = touch.clientX - rect.left - (rect.width / 2);
-      const y = touch.clientY - rect.top - (rect.height / 2);
+      const touchPos = getTouchCoords(e);
+      const x = touchPos.x;
+      const y = touchPos.y;
 
-      // Rozhodnutí, zda byl dotyk více horizontální nebo vertikální
+      // Rozhodnutí o směru (rozdělíme kruh na 4 kvadranty)
       if (Math.abs(x) > Math.abs(y)) {
         // Horizontální osa (doleva / doprava)
         if (x > 0 && dx === 0) { dx = gridSize; dy = 0; } // Doprava
@@ -178,16 +256,7 @@
       }
     }, {passive: false});
 
-    // Klávesnice pro případné testování na počítači
-    window.addEventListener('keydown', e => {
-      if (isGameOver && e.key === 'Enter') { initGame(); return; }
-      if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -gridSize; }
-      if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = gridSize; }
-      if (e.key === 'ArrowLeft' && dx === 0) { dx = -gridSize; dy = 0; }
-      if (e.key === 'ArrowRight' && dx === 0) { dx = gridSize; dy = 0; }
-    });
-
-    // Úvodní obrazovka
+    // Úvodní obrazovka při načtení
     gameOver(); 
   </script>
 </body>
