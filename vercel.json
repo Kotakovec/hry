@@ -1,5 +1,0 @@
-{
-  "routes": [
-    { "src": "/(.*)", "status": 308, "dest": "https://primuscraft.eu" }
-  ]
-}
