@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <!-- Tyhle meta tagy zabrání přibližování a zajistí správné zobrazení na mobilu/hodinkách -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Nokia Had na Hodinky</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background-color: #000; /* Černé pozadí pro šetření AMOLED baterie */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden; /* Zabrání posouvání stránky */
+      touch-action: none; /* Vypne gesta prohlížeče, např. swipe pro krok zpět */
+      font-family: Arial, sans-serif;
+    }
+    
+    canvas {
+      background-color: #9bc700; /* Klasická Nokia zelená */
+      width: 100vmin; /* 100vmin zajistí přesný čtverec, který vyplní obrazovku (1:1) */
+      height: 100vmin;
+      border-radius: 5%; /* Lehké zaoblení pro hezčí vzhled na kulatých hodinkách */
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="gameCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Interní rozlišení hry (čtverec)
+    canvas.width = 400;
+    canvas.height = 400;
+
+    const gridSize = 20; // Velikost jednoho políčka
+    let snake;
+    let food;
+    let dx;
+    let dy;
+    let score;
+    let gameLoopTimeout;
+    let isGameOver = true; // Začneme s obrazovkou pro start
+
+    function initGame() {
+      snake = [{x: 200, y: 200}];
+      dx = 0;
+      dy = -gridSize;
+      score = 0;
+      isGameOver = false;
+      spawnFood();
+      update();
+    }
+
+    function spawnFood() {
+      food = {
+        x: Math.floor(Math.random() * (canvas.width / gridSize)) * gridSize,
+        y: Math.floor(Math.random() * (canvas.height / gridSize)) * gridSize
+      };
+    }
+
+    function drawBlock(x, y, color) {
+      ctx.fillStyle = color;
+      // Vykreslíme o pixel menší čtverec, aby byla vidět mřížka jako na starých displejích
+      ctx.fillRect(x, y, gridSize - 1, gridSize - 1); 
+    }
+
+    function update() {
+      if (isGameOver) return;
+
+      gameLoopTimeout = setTimeout(update, 150); // Rychlost hada (v milisekundách)
+
+      // Výpočet nové hlavy hada
+      const head = { x: snake[0].x + dx, y: snake[0].y + dy };
+
+      // Náraz do zdi -> Konec hry
+      if (head.x < 0 || head.x >= canvas.width || head.y < 0 || head.y >= canvas.height) {
+        gameOver();
+        return;
+      }
+
+      // Náraz do sebe sama -> Konec hry
+      for (let i = 0; i < snake.length; i++) {
+        if (head.x === snake[i].x && head.y === snake[i].y) {
+          gameOver();
+          return;
+        }
+      }
+
+      // Přidání nové hlavy
+      snake.unshift(head);
+
+      // Pokud sní jídlo
+      if (head.x === food.x && head.y === food.y) {
+        score++;
+        spawnFood();
+      } else {
+        // Pokud nejí, zkrátíme ocas (had se pohybuje)
+        snake.pop();
+      }
+
+      draw();
+    }
+
+    function draw() {
+      // Vyčištění plátna
+      ctx.fillStyle = '#9bc700';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Vykreslení jídla
+      drawBlock(food.x, food.y, '#000');
+
+      // Vykreslení hada
+      snake.forEach(part => drawBlock(part.x, part.y, '#000'));
+
+      // Vykreslení skóre
+      ctx.fillStyle = '#000';
+      ctx.font = '20px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText(score, 10, 25);
+    }
+
+    function gameOver() {
+      isGameOver = true;
+      ctx.fillStyle = 'rgba(155, 199, 0, 0.9)'; // Poloprůhledné překrytí
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      ctx.fillStyle = '#000';
+      ctx.textAlign = 'center';
+      
+      if (score === undefined) {
+        ctx.font = '30px Arial';
+        ctx.fillText('NOKIA HAD', canvas.width / 2, canvas.height / 2 - 10);
+        ctx.font = '18px Arial';
+        ctx.fillText('Klepni pro start', canvas.width / 2, canvas.height / 2 + 30);
+      } else {
+        ctx.font = '30px Arial';
+        ctx.fillText('KONEC HRY', canvas.width / 2, canvas.height / 2 - 20);
+        ctx.font = '20px Arial';
+        ctx.fillText('Skóre: ' + score, canvas.width / 2, canvas.height / 2 + 10);
+        ctx.font = '16px Arial';
+        ctx.fillText('Klepni pro novou hru', canvas.width / 2, canvas.height / 2 + 40);
+      }
+    }
+
+    // --- DOTYKOVÉ OVLÁDÁNÍ PRO HODINKY ---
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault(); // Zabrání scrollování stránky dotykem
+
+      if (isGameOver) {
+        initGame();
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      
+      // Zjistíme, kde se uživatel dotkl relativně ke středu herní plochy
+      const x = touch.clientX - rect.left - (rect.width / 2);
+      const y = touch.clientY - rect.top - (rect.height / 2);
+
+      // Rozhodnutí, zda byl dotyk více horizontální nebo vertikální
+      if (Math.abs(x) > Math.abs(y)) {
+        // Horizontální osa (doleva / doprava)
+        if (x > 0 && dx === 0) { dx = gridSize; dy = 0; } // Doprava
+        else if (x < 0 && dx === 0) { dx = -gridSize; dy = 0; } // Doleva
+      } else {
+        // Vertikální osa (nahoru / dolů)
+        if (y > 0 && dy === 0) { dx = 0; dy = gridSize; } // Dolů
+        else if (y < 0 && dy === 0) { dx = 0; dy = -gridSize; } // Nahoru
+      }
+    }, {passive: false});
+
+    // Klávesnice pro případné testování na počítači
+    window.addEventListener('keydown', e => {
+      if (isGameOver && e.key === 'Enter') { initGame(); return; }
+      if (e.key === 'ArrowUp' && dy === 0) { dx = 0; dy = -gridSize; }
+      if (e.key === 'ArrowDown' && dy === 0) { dx = 0; dy = gridSize; }
+      if (e.key === 'ArrowLeft' && dx === 0) { dx = -gridSize; dy = 0; }
+      if (e.key === 'ArrowRight' && dx === 0) { dx = gridSize; dy = 0; }
+    });
+
+    // Úvodní obrazovka
+    gameOver(); 
+  </script>
+</body>
+</html>
